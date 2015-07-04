@@ -56,6 +56,7 @@ double temp1 = 33.3;
 double temp2 = 50;
 double humidity1 = 66.6;
 double humidity2 = 60;
+String incomingData;
 
 
 void setup() {
@@ -63,8 +64,7 @@ void setup() {
   Serial.begin(9600);
   while (!Serial) {
     ; // wait for serial port to connect. Needed for Leonardo only
-  }  
-  freeMem("start application");
+  }    
   
   #ifdef DEBUG
   Serial.println("****** GeniuSence Modular Unit Started ******");
@@ -74,16 +74,15 @@ void setup() {
   Serial.println(postingInterval);
   #endif
   
+  // give the ethernet module time to boot up:
+  delay(1000);
   
   // start the Ethernet connection:
   if (Ethernet.begin(mac) == 0) {
     Serial.println("Failed to configure Ethernet using DHCP, trying with static ip");
     // try to congifure using IP address instead of DHCP:
     Ethernet.begin(mac, ip, myDns, gateway, subnet);
-  }
-  
-  // give the ethernet module time to boot up:
-  delay(1000);
+  }  
       
   // print the Ethernet board/shield's IP address:
   Serial.print("My IP address: ");
@@ -98,18 +97,28 @@ void loop() {
   // if there's incoming data from the net connection.
   // send it out the serial port.  This is for debugging
   // purposes only:
-  if (client.available()) {
+  while (client.available()) {    
     char c = client.read();
-    Serial.write(c);
+    incomingData += c;
+
+    if(incomingData.endsWith("Connection: close")) {
+      incomingData="";
+    }    
   }
+
+  Serial.println(incomingData);
+  Serial.flush();
+  
+  
+  freeMem("after print incoming data"); 
 
   // if ten seconds have passed since your last connection,
   // then connect again and send data:
   if (millis() - lastConnectionTime > postingInterval) {
-    postRequest();      
-  }
+    postRequest();     
+    lastConnectionTime = millis(); 
+  }  
   
-  lastConnectionTime = millis();
   freeMem("end of loop");
 }
 
@@ -122,7 +131,6 @@ void postRequest() {
     Serial.print("string: ");
     Serial.println(string);
   }
-
   
   // close any connection before send a new request.
   // This will free the socket on the WiFi shield
@@ -141,18 +149,20 @@ void postRequest() {
     client.println();
   }
   delay(2000);
-   
+
+  /* 
   if (client.connected()) {
   Serial.println();
   Serial.println("disconnecting from the server");
   client.stop();  
   }  
+  */
   aJson.deleteItem(root);
     free(string);
   
 }
 
-// this method makes a HTTP connection to the server:
+// this method makes a HTTP-GET connection to the server:
 void httpRequest() {
   // close any connection before send a new request.
   // This will free the socket on the WiFi shield
