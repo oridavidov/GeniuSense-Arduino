@@ -2,6 +2,7 @@
 #include <Ethernet.h>
 #include <aJSON.h>
 #include <avr/pgmspace.h>
+#include <Time.h>
 
 #define DEBUG 
 #define VERSION 1.0
@@ -44,6 +45,8 @@ int remoteServerPort = 8080;
 
 // initialize the library instance:
 EthernetClient client;
+EthernetUDP udp;
+     
 
 unsigned long lastConnectionTime = 0;             // last time you connected to the server, in milliseconds
 const unsigned long postingInterval = 60000; // delay between updates, in milliseconds
@@ -56,7 +59,9 @@ double temp1 = 33.3;
 double temp2 = 50;
 double humidity1 = 66.6;
 double humidity2 = 60;
-String incomingData;
+int    ttime;
+//String incomingData;
+
 
 
 void setup() {
@@ -87,6 +92,7 @@ void setup() {
   // print the Ethernet board/shield's IP address:
   Serial.print("My IP address: ");
   Serial.println(Ethernet.localIP());
+
   freeMem("end setup");  
 }
 
@@ -94,20 +100,28 @@ void loop() {
   delay(5000);
   
   Ethernet.maintain();   
+
   // if there's incoming data from the net connection.
   // send it out the serial port.  This is for debugging
   // purposes only:
   while (client.available()) {    
     char c = client.read();
-    incomingData += c;
+    //incomingData += c;
 
-    if(incomingData.endsWith("Connection: close")) {
-      incomingData="";
-    }    
-  }
+    //if(incomingData.endsWith("Connection: close")) {
+    //  incomingData="";
+    //}    
+  } 
 
-  Serial.println(incomingData);
-  Serial.flush();
+  if (client.connected()) {
+  Serial.println();
+  Serial.println("disconnecting from the server");
+  client.stop();  
+  }  
+
+  //Serial.println(incomingData);
+  //incomingData="";
+  //Serial.flush();
   
   
   freeMem("after print incoming data"); 
@@ -115,7 +129,9 @@ void loop() {
   // if ten seconds have passed since your last connection,
   // then connect again and send data:
   if (millis() - lastConnectionTime > postingInterval) {
-    postRequest();     
+    //postRequest();
+    //postTimeRequest();
+    httpRequest();     
     lastConnectionTime = millis(); 
   }  
   
@@ -150,16 +166,27 @@ void postRequest() {
   }
   delay(2000);
 
-  /* 
-  if (client.connected()) {
-  Serial.println();
-  Serial.println("disconnecting from the server");
-  client.stop();  
-  }  
-  */
+  
   aJson.deleteItem(root);
     free(string);
   
+}
+
+void postTimeRequest() {
+   
+  // close any connection before send a new request.
+  // This will free the socket on the WiFi shield
+  client.stop();
+  
+  if (client.connect(server, remoteServerPort)) {
+    Serial.println("connected to the server");
+    client.println("POST /getCurrentTime HTTP/1.1");
+    client.println("Host: www.GeniuSence.com");
+    client.println("Content-Type: application/json");
+    client.println("Connection: close");
+    client.println();
+  }
+  delay(2000);  
 }
 
 // this method makes a HTTP-GET connection to the server:
@@ -170,16 +197,15 @@ void httpRequest() {
 
   // if there's a successful connection:
   if (client.connect(server, remoteServerPort)) {
-    Serial.println("connecting...");
+    Serial.println("connected...");
     // send the HTTP PUT request:
-    client.println("GET /test HTTP/1.1");
-    client.println("Host: Localhost");
-    client.println("User-Agent: arduino-ethernet");
+    client.println("GET /getCurrentTime HTTP/1.1");
+    //client.println("Content-Type: application/json");
+    //client.println("User-Agent: arduino-ethernet");    
+    client.println("Host: www.google.com");
     client.println("Connection: close");
     client.println();
-
-    // note the time that the connection was made:
-    lastConnectionTime = millis();
+    delay(2000);  
   }
   else {
     // if you couldn't make a connection:
@@ -203,14 +229,18 @@ void buildJSON() {
     return;
   }
   
-  aJson.addStringToObject(root,"unit_id", unit_id);
-  aJson.addStringToObject(root,"unit_type", unit_type);
+  aJson.addStringToObject(root,"unitId", unit_id);
+  aJson.addStringToObject(root,"unitType", unit_type);
+  aJson.addNumberToObject(root, "time", ttime);
   //aJson.addFalseToObject (fmt,"interlace");
   aJson.addNumberToObject(root, "temperature1", temp1);
   aJson.addNumberToObject(root, "temperature2", temp2);
   aJson.addNumberToObject(root, "humidity1", humidity1);
-  aJson.addNumberToObject(root, "humidity2", humidity2);    
+  aJson.addNumberToObject(root, "humidity2", humidity2);  
+    
 }
+
+
 
 
 //Code to print out the free memory
@@ -259,5 +289,9 @@ void freeMem(char* message) {
   Serial.print(":\t");
   Serial.println(freeMem(&biggest));
 }
+
+
+
+
 
 
